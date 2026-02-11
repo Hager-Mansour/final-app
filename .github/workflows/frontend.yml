@@ -1,0 +1,67 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+
+env:
+  AWS_REGION: us-east-1
+  ACCOUNT_ID: 596560793647
+  CLUSTER_NAME: demo-eks
+  ECR_REPO: fullstack-frontend
+
+jobs:
+  frontend-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # 1️⃣ Checkout Code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Configure AWS via OIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::596560793647:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3️⃣ Login to Amazon ECR
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+          | docker login --username AWS \
+            --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      # 4️⃣ Build Frontend Docker Image
+      - name: Build Frontend Image
+        run: |
+          docker build -t $ECR_REPO:${{ github.sha }} ./frontend
+          docker tag $ECR_REPO:${{ github.sha }} \
+            $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
+
+      # 5️⃣ Push Frontend Image to ECR
+      - name: Push Frontend Image
+        run: |
+          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
+
+      # 6️⃣ Update kubeconfig for EKS
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region $AWS_REGION \
+            --name $CLUSTER_NAME
+
+      # 7️⃣ Deploy Frontend using Helm
+      - name: Deploy Frontend with Helm
+        run: |
+          helm upgrade --install fullstack-app ./helm \
+            --set frontend.image.repository=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO \
+            --set frontend.image.tag=${{ github.sha }}
