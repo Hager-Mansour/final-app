@@ -1,0 +1,18 @@
+backend:
+  image:
+    repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fullstack-backend
+    tag: latest
+  replicas: 2
+
+frontend:
+  image:
+    repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fullstack-frontend
+    tag: latest
+  replicas: 2
+
+database:
+  url: postgresql://DB_USER:DB_PASSWORD@RDS_ENDPOINT:5432/microservices_db
+
+ingress:
+  enabled: true
+  className: alb
