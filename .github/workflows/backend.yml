@@ -11,6 +11,7 @@ env:
   AWS_REGION: us-east-1
   ACCOUNT_ID: 596560793647
   CLUSTER_NAME: demo-eks
+  ECR_REPO: fullstack-backend
 
 jobs:
   backend-deploy:
@@ -21,39 +22,42 @@ jobs:
       contents: read
 
     steps:
+      # 1️⃣ Checkout code
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2️⃣ Configure AWS via OIDC
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::596560793647:role/github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
+      # 3️⃣ Login to ECR
       - name: Login to ECR
         run: |
           aws ecr get-login-password --region $AWS_REGION \
           | docker login --username AWS \
             --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
+      # 4️⃣ Build Backend Image
       - name: Build Backend Image
         run: |
-          docker build -t backend:${{ github.sha }} ./backend
-          docker tag backend:${{ github.sha }} \
-          $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fullstack-backend:${{ github.sha }}
+          docker build -t $ECR_REPO:${{ github.sha }} ./backend
+          docker tag $ECR_REPO:${{ github.sha }} \
+          $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
 
+      # 5️⃣ Push Backend Image
       - name: Push Backend Image
         run: |
-          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fullstack-backend:${{ github.sha }}
+          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
 
+      # 6️⃣ Connect to EKS
       - name: Update Kubeconfig
         run: |
           aws eks update-kubeconfig \
             --region $AWS_REGION \
             --name $CLUSTER_NAME
 
+      # 7️⃣ Deploy using Helm
       - name: Deploy Backend with Helm
-        run: |
-          helm upgrade --install fullstack-app ./helm \
-            --set backend.image.tag=${{ github.sha }}
