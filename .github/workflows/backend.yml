@@ -2,18 +2,18 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
       - 'backend/**'
 
 env:
   AWS_REGION: us-east-1
+  ACCOUNT_ID: 596560793647
   CLUSTER_NAME: demo-eks
-  ECR_REPO: fullstack-backend
-  ACCOUNT_ID: 123456789012
 
 jobs:
-  build-and-deploy:
+  backend-deploy:
     runs-on: ubuntu-latest
 
     permissions:
@@ -21,11 +21,14 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ env.ACCOUNT_ID }}:role/github-actions-role
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
@@ -34,21 +37,23 @@ jobs:
           | docker login --username AWS \
             --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      - name: Build Image
+      - name: Build Backend Image
         run: |
-          docker build -t $ECR_REPO:${{ github.sha }} ./backend
+          docker build -t backend:${{ github.sha }} ./backend
+          docker tag backend:${{ github.sha }} \
+          $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fullstack-backend:${{ github.sha }}
 
-      - name: Tag Image
+      - name: Push Backend Image
         run: |
-          docker tag $ECR_REPO:${{ github.sha }} \
-          $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
+          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/fullstack-backend:${{ github.sha }}
 
-      - name: Push Image
+      - name: Update Kubeconfig
         run: |
-          docker push $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:${{ github.sha }}
+          aws eks update-kubeconfig \
+            --region $AWS_REGION \
+            --name $CLUSTER_NAME
 
-      - name: Deploy Backend
+      - name: Deploy Backend with Helm
         run: |
-          aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME
           helm upgrade --install fullstack-app ./helm \
             --set backend.image.tag=${{ github.sha }}
