@@ -1,17 +1,17 @@
 backend:
   image:
-    repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fullstack-backend
+    repository: 596560793647.dkr.ecr.us-east-1.amazonaws.com/fullstack-backend
     tag: latest
   replicas: 2
 
 frontend:
   image:
-    repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/fullstack-frontend
+    repository: 596560793647.dkr.ecr.us-east-1.amazonaws.com/fullstack-frontend
     tag: latest
   replicas: 2
 
 database:
-  url: postgresql://DB_USER:DB_PASSWORD@RDS_ENDPOINT:5432/microservices_db
+  url: "postgresql://appuser:@{p-e7:@i})LnH*r@app-db-prod.cyj60ga6sq8b.us-east-1.rds.amazonaws.com:5432/appdb"
 
 ingress:
   enabled: true
